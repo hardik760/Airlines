@@ -1146,12 +1146,12 @@ async function handleLogin(e) {
 async function handleRegister(e) {
     e.preventDefault();
     const req = {
-        firstName: document.getElementById('reg-first-name').value,
-        lastName: document.getElementById('reg-last-name').value,
-        email: document.getElementById('reg-email').value,
-        password: document.getElementById('reg-password').value,
-        phone: document.getElementById('reg-phone').value,
-        passportNumber: document.getElementById('reg-passport').value
+        firstName: document.getElementById('reg-first-name').value.trim(),
+        lastName: document.getElementById('reg-last-name').value.trim(),
+        email: document.getElementById('reg-email').value.trim(),
+        password: document.getElementById('reg-password').value.trim(),
+        phone: document.getElementById('reg-phone').value.trim(),
+        passportNumber: document.getElementById('reg-passport').value.trim()
     };
 
     try {
@@ -1161,7 +1161,32 @@ async function handleRegister(e) {
             body: JSON.stringify(req)
         });
 
-        if (!res.ok) throw new Error('Registration failed. Email or phone may already exist.');
+        if (!res.ok) {
+            // If the account already exists (e.g. aarav@gmail.com), seamlessly sign them in
+            const loginRes = await fetch(`${API_BASE}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: req.email, password: req.password })
+            });
+
+            if (loginRes.ok) {
+                const authData = await loginRes.json();
+                state.currentUser = authData.passenger || {
+                    passengerId: authData.passengerId,
+                    email: authData.email,
+                    name: authData.name,
+                    firstName: req.firstName || (authData.name ? authData.name.split(' ')[0] : 'User')
+                };
+                localStorage.setItem('aeroskyline_user', JSON.stringify(state.currentUser));
+                updateNavForUser(state.currentUser);
+                el.authModal.classList.add('hidden');
+                showToast(`Welcome! Signed in as ${state.currentUser.firstName || 'Traveler'}!`, 'success');
+                return;
+            }
+
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.message || 'Registration failed. Email or phone may already exist.');
+        }
 
         const registered = await res.json();
         state.currentUser = registered;
